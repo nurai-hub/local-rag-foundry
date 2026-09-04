@@ -1,0 +1,15 @@
+Pipelining in Computer Architecture
+
+Pipelining is a technique where multiple instruction phases (fetch, decode, execute, memory access, write back) are overlapped to improve throughput. Instead of waiting for one instruction to fully complete before starting the next, the processor works on several instructions simultaneously, each at a different stage. This increases instruction throughput but does not reduce the latency of a single instruction.
+
+Branch Prediction
+
+Branch prediction is a technique used in pipelined processors to guess the outcome of a conditional branch instruction before it is actually known. Because pipelines fetch instructions ahead of time, a branch instruction creates uncertainty about which instruction comes next. If the processor waits for the branch to resolve, it wastes cycles (called a pipeline stall or bubble). Branch predictors use history-based methods, such as two-bit saturating counters or branch history tables, to predict whether a branch will be taken or not taken. If the prediction is correct, execution continues smoothly. If it is wrong, the pipeline must be flushed and restarted, causing a performance penalty called a branch misprediction penalty.
+
+Cache Memory
+
+Cache memory is a small, fast memory located close to the CPU that stores frequently accessed data and instructions. It exploits the principle of locality: temporal locality (recently used data is likely to be used again) and spatial locality (data near recently used data is likely to be used soon). Caches are organized in levels (L1, L2, L3), with L1 being the smallest and fastest. A cache hit means the requested data is found in the cache, while a cache miss means the processor must fetch data from a slower memory level.
+
+Instruction Level Parallelism
+
+Instruction Level Parallelism (ILP) refers to the ability of a processor to execute multiple instructions simultaneously by exploiting independence between instructions. Techniques to increase ILP include pipelining, superscalar execution (issuing multiple instructions per cycle), and out-of-order execution, where instructions are executed as soon as their operands are ready rather than strictly in program order.
