@@ -1,26 +1,21 @@
-﻿
+import os
+import glob
 import openai
 import numpy as np
 from pypdf import PdfReader
 
+BASE_URL = os.environ.get("FOUNDRY_BASE_URL", "http://127.0.0.1:40975/v1")
+
 client = openai.OpenAI(
-    base_url="http://127.0.0.1:40975/v1",
+    base_url=BASE_URL,
     api_key="not-needed"
 )
 
 CHAT_MODEL = "qwen2.5-1.5b"
 EMBED_MODEL = "qwen3-embedding-0.6b"
-PDF_FILE = "branch_prediction.pdf"
+DOCUMENTS_FOLDER = "documents"
 
 def clean_ligatures(text):
-    replacements = {
-        "5": "ti",
-        "@": "a",
-        "Z": "tt",
-        "<": "tt",
-        "\uf0be": "ti",
-    }
-    # Sadece bilinen kelime kaliplarinda degistir, rastgele rakam/sembolleri bozmamak icin
     known_fixes = {
         "predic5on": "prediction",
         "predic@on": "prediction",
@@ -36,9 +31,11 @@ def clean_ligatures(text):
         "run-­‐5me": "run-time",
         "correla5ng": "correlating",
         "paZern": "pattern",
+        "pa<ern": "pattern",
         "beZer": "better",
         "Solu5on": "Solution",
         "predica@on": "predication",
+        "Predic5on": "Prediction",
     }
     for wrong, right in known_fixes.items():
         text = text.replace(wrong, right)
@@ -53,6 +50,19 @@ def load_pdf_text(path):
             full_text += page_text + "\n"
     return clean_ligatures(full_text)
 
+def load_all_documents(folder):
+    pdf_paths = glob.glob(os.path.join(folder, "*.pdf"))
+    all_chunks = []
+    for path in pdf_paths:
+        filename = os.path.basename(path)
+        print(f"Okunuyor: {filename}")
+        text = load_pdf_text(path)
+        doc_chunks = chunk_text(text)
+        for chunk in doc_chunks:
+            # Her chunk'i hangi dosyadan geldigini de saklayacak sekilde etiketliyoruz
+            all_chunks.append({"source": filename, "text": chunk})
+    return all_chunks
+
 def chunk_text(text, chunk_size=800, overlap=150):
     text = " ".join(text.split())
     chunks = []
@@ -63,10 +73,9 @@ def chunk_text(text, chunk_size=800, overlap=150):
         start += chunk_size - overlap
     return chunks
 
-print("PDF okunuyor...")
-raw_text = load_pdf_text(PDF_FILE)
-chunks = chunk_text(raw_text)
-print(f"Toplam {len(chunks)} parca (chunk) bulundu.\n")
+print(f"'{DOCUMENTS_FOLDER}' klasorundeki PDF'ler okunuyor...")
+chunks = load_all_documents(DOCUMENTS_FOLDER)
+print(f"\nToplam {len(chunks)} parca (chunk) bulundu.\n")
 
 def get_embedding(text_input):
     response = client.embeddings.create(
@@ -76,7 +85,7 @@ def get_embedding(text_input):
     return np.array(response.data[0].embedding)
 
 print("Parcalar embeddinge cevriliyor, bu biraz surebilir...")
-chunk_embeddings = [get_embedding(chunk) for chunk in chunks]
+chunk_embeddings = [get_embedding(c["text"]) for c in chunks]
 print("Tamamlandi.\n")
 
 def cosine_similarity(a, b):
@@ -90,7 +99,9 @@ def find_most_relevant_chunk(question, top_k=2):
 
 def ask(question):
     relevant_chunks = find_most_relevant_chunk(question, top_k=2)
-    context = "\n\n---\n\n".join(relevant_chunks)
+    context = "\n\n---\n\n".join(
+        f"[Kaynak: {c['source']}]\n{c['text']}" for c in relevant_chunks
+    )
 
     print(f"\n[Bulunan ilgili bolum]:\n{context}\n")
 
