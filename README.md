@@ -2,8 +2,6 @@
 
 A fully local, offline Retrieval-Augmented Generation (RAG) course assistant built with Microsoft Foundry Local. It answers Computer Architecture questions (branch prediction, pipelining) by retrieving relevant sections from PDF lecture materials and generating grounded answers with a local LLM - no cloud, no API keys, no internet required after setup.
 
-![Demo](assets/demo.png)
-
 ## Features
 
 - **Fully local & offline** - runs entirely on-device using Foundry Local, zero cloud dependency after initial model download
@@ -11,6 +9,9 @@ A fully local, offline Retrieval-Augmented Generation (RAG) course assistant bui
 - **Source citation** - every answer reports which document(s) the retrieved context came from
 - **Hallucination guard** - if the best similarity score falls below a threshold, the system responds "I don't have enough information" instead of forcing an answer from irrelevant context. This is reinforced by an explicit instruction in the prompt itself
 - **One-command startup** - a PowerShell script automatically starts the Foundry Local server, detects its port, loads the required models, and launches the app
+
+## Demo
+![Demo](assets/demo.png)
 
 ## Architecture
 ```mermaid
