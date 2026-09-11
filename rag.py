@@ -14,6 +14,7 @@ client = openai.OpenAI(
 CHAT_MODEL = "qwen2.5-1.5b"
 EMBED_MODEL = "qwen3-embedding-0.6b"
 DOCUMENTS_FOLDER = "documents"
+SIMILARITY_THRESHOLD = 0.4
 
 def clean_ligatures(text):
     known_fixes = {
@@ -50,19 +51,6 @@ def load_pdf_text(path):
             full_text += page_text + "\n"
     return clean_ligatures(full_text)
 
-def load_all_documents(folder):
-    pdf_paths = glob.glob(os.path.join(folder, "*.pdf"))
-    all_chunks = []
-    for path in pdf_paths:
-        filename = os.path.basename(path)
-        print(f"Okunuyor: {filename}")
-        text = load_pdf_text(path)
-        doc_chunks = chunk_text(text)
-        for chunk in doc_chunks:
-            # Her chunk'i hangi dosyadan geldigini de saklayacak sekilde etiketliyoruz
-            all_chunks.append({"source": filename, "text": chunk})
-    return all_chunks
-
 def chunk_text(text, chunk_size=800, overlap=150):
     text = " ".join(text.split())
     chunks = []
@@ -72,6 +60,18 @@ def chunk_text(text, chunk_size=800, overlap=150):
         chunks.append(text[start:end])
         start += chunk_size - overlap
     return chunks
+
+def load_all_documents(folder):
+    pdf_paths = glob.glob(os.path.join(folder, "*.pdf"))
+    all_chunks = []
+    for path in pdf_paths:
+        filename = os.path.basename(path)
+        print(f"Okunuyor: {filename}")
+        text = load_pdf_text(path)
+        doc_chunks = chunk_text(text)
+        for chunk in doc_chunks:
+            all_chunks.append({"source": filename, "text": chunk})
+    return all_chunks
 
 print(f"'{DOCUMENTS_FOLDER}' klasorundeki PDF'ler okunuyor...")
 chunks = load_all_documents(DOCUMENTS_FOLDER)
@@ -95,17 +95,26 @@ def find_most_relevant_chunk(question, top_k=2):
     q_embedding = get_embedding(question)
     similarities = [cosine_similarity(q_embedding, ce) for ce in chunk_embeddings]
     best_indices = np.argsort(similarities)[::-1][:top_k]
-    return [chunks[i] for i in best_indices]
+    best_score = similarities[best_indices[0]]
+    return [chunks[i] for i in best_indices], best_score
 
 def ask(question):
-    relevant_chunks = find_most_relevant_chunk(question, top_k=2)
+    relevant_chunks, best_score = find_most_relevant_chunk(question, top_k=2)
+
+    print(f"\n[Benzerlik skoru]: {best_score:.3f}")
+
+    if best_score < SIMILARITY_THRESHOLD:
+        print("[Cevap]: Bu konuda dokumanlarimda yeterli bilgi bulamadim. Baska bir soru deneyebilir misin?\n")
+        return
+
+    sources_used = sorted(set(c["source"] for c in relevant_chunks))
+    print(f"[Kullanilan kaynaklar]: {', '.join(sources_used)}\n")
+
     context = "\n\n---\n\n".join(
         f"[Kaynak: {c['source']}]\n{c['text']}" for c in relevant_chunks
     )
 
-    print(f"\n[Bulunan ilgili bolum]:\n{context}\n")
-
-    prompt = f"""Asagidaki baglami kullanarak soruyu cevapla. Baglamda olmayan bir bilgiyi uydurma.
+    prompt = f"""Asagidaki baglami kullanarak soruyu cevapla. Eger baglamda sorunun cevabi yoksa, "Bu konuda dokumanlarda yeterli bilgi bulamadim" de. Baglamda olmayan bir bilgiyi uydurma.
 
 Baglam:
 {context}
