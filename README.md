@@ -11,18 +11,22 @@ A fully local, offline Retrieval-Augmented Generation (RAG) course assistant bui
 - **One-command startup** - a PowerShell script automatically starts the Foundry Local server, detects its port, loads the required models, and launches the app
 
 ## Architecture
-
 ```mermaid
-flowchart TD
-    A[User question] --> B[Generate embedding]
-    B --> C[Cosine similarity search]
-    C --> D{Score above threshold?}
-    D -->|No| E[Not enough information response]
-    D -->|Yes| F[Retrieve top 2 chunks]
-    F --> G[Qwen2.5-1.5b - local LLM]
-    G --> H[Answer + source citation]
+flowchart LR
+    A[PDF Documents] --> B[Text Extraction<br/>pypdf]
+    B --> C[Chunking<br/>800 chars, 150 overlap]
+    C --> D[Embedding<br/>Qwen3-Embedding-0.6B]
+    D --> E[(Vector Store<br/>in-memory)]
+    
+    F[User Question] --> G[Query Embedding]
+    G --> H[Cosine Similarity<br/>Search]
+    E --> H
+    H --> I{Best score ><br/>threshold?}
+    I -->|No| J[No enough info response]
+    I -->|Yes| K[Retrieve top-k chunks]
+    K --> L[LLM Generation<br/>Qwen2.5-1.5B]
+    L --> M[Answer + Sources]
 ```
-
 ## Tech Stack
 
 - **Runtime:** Foundry Local (Microsoft), GPU-accelerated (Intel integrated graphics)
