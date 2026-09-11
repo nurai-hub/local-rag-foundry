@@ -12,7 +12,7 @@ A fully local, offline Retrieval-Augmented Generation (RAG) course assistant bui
 
 ## Demo
 ![Demo](screenshots/demo.png)
-![Demo](screenshots/demo1.png)
+![Demo 1](screenshots/demo1.png)
 
 
 ## Architecture
