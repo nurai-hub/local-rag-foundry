@@ -11,7 +11,9 @@ A fully local, offline Retrieval-Augmented Generation (RAG) course assistant bui
 - **One-command startup** - a PowerShell script automatically starts the Foundry Local server, detects its port, loads the required models, and launches the app
 
 ## Demo
-![Demo](demo.png)
+![Demo](screenshots/demo.png)
+![Demo](screenshots/demo1.png)
+
 
 ## Architecture
 ```mermaid
