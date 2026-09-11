@@ -1,11 +1,12 @@
 import os
 import glob
+import pickle
+import hashlib
 import openai
 import numpy as np
 from pypdf import PdfReader
 
 BASE_URL = os.environ.get("FOUNDRY_BASE_URL", "http://127.0.0.1:40975/v1")
-
 client = openai.OpenAI(
     base_url=BASE_URL,
     api_key="not-needed"
@@ -15,6 +16,8 @@ CHAT_MODEL = "qwen2.5-1.5b"
 EMBED_MODEL = "qwen3-embedding-0.6b"
 DOCUMENTS_FOLDER = "documents"
 SIMILARITY_THRESHOLD = 0.4
+CACHE_FILE = "embeddings_cache.pkl"
+
 
 def clean_ligatures(text):
     known_fixes = {
@@ -42,6 +45,7 @@ def clean_ligatures(text):
         text = text.replace(wrong, right)
     return text
 
+
 def load_pdf_text(path):
     reader = PdfReader(path)
     full_text = ""
@@ -50,6 +54,7 @@ def load_pdf_text(path):
         if page_text:
             full_text += page_text + "\n"
     return clean_ligatures(full_text)
+
 
 def chunk_text(text, chunk_size=800, overlap=150):
     text = " ".join(text.split())
@@ -60,6 +65,7 @@ def chunk_text(text, chunk_size=800, overlap=150):
         chunks.append(text[start:end])
         start += chunk_size - overlap
     return chunks
+
 
 def load_all_documents(folder):
     pdf_paths = glob.glob(os.path.join(folder, "*.pdf"))
@@ -73,9 +79,14 @@ def load_all_documents(folder):
             all_chunks.append({"source": filename, "text": chunk})
     return all_chunks
 
-print(f"'{DOCUMENTS_FOLDER}' klasorundeki PDF'ler okunuyor...")
-chunks = load_all_documents(DOCUMENTS_FOLDER)
-print(f"\nToplam {len(chunks)} parca (chunk) bulundu.\n")
+
+def get_documents_hash(folder):
+    """documents/ klasorundeki PDF'lerin isim+degisiklik-tarihinden bir hash uretir.
+    Bu hash degismediyse, PDF'ler degismemis demektir ve embeddingler cache'ten okunabilir."""
+    pdf_paths = sorted(glob.glob(os.path.join(folder, "*.pdf")))
+    hash_input = "".join(f"{p}{os.path.getmtime(p)}" for p in pdf_paths)
+    return hashlib.md5(hash_input.encode()).hexdigest()
+
 
 def get_embedding(text_input):
     response = client.embeddings.create(
@@ -84,12 +95,41 @@ def get_embedding(text_input):
     )
     return np.array(response.data[0].embedding)
 
-print("Parcalar embeddinge cevriliyor, bu biraz surebilir...")
-chunk_embeddings = [get_embedding(c["text"]) for c in chunks]
-print("Tamamlandi.\n")
+
+def load_chunks_and_embeddings():
+    """Cache dosyasi varsa ve PDF'ler degismemisse cache'ten okur.
+    Aksi halde PDF'leri yeniden okur, embeddingleri hesaplar ve cache'e yazar."""
+    current_hash = get_documents_hash(DOCUMENTS_FOLDER)
+
+    if os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, "rb") as f:
+            cached_hash, cached_chunks, cached_embeddings = pickle.load(f)
+        if cached_hash == current_hash:
+            print("Cache bulundu, PDF'ler degismemis. Embeddingler yeniden hesaplanmiyor.\n")
+            return cached_chunks, cached_embeddings
+        else:
+            print("Documents klasorunde degisiklik tespit edildi, embeddingler yeniden hesaplanacak.")
+
+    print(f"'{DOCUMENTS_FOLDER}' klasorundeki PDF'ler okunuyor...")
+    chunks = load_all_documents(DOCUMENTS_FOLDER)
+    print(f"\nToplam {len(chunks)} parca (chunk) bulundu.\n")
+
+    print("Parcalar embeddinge cevriliyor, bu biraz surebilir...")
+    embeddings = [get_embedding(c["text"]) for c in chunks]
+    print("Tamamlandi.\n")
+
+    with open(CACHE_FILE, "wb") as f:
+        pickle.dump((current_hash, chunks, embeddings), f)
+
+    return chunks, embeddings
+
+
+chunks, chunk_embeddings = load_chunks_and_embeddings()
+
 
 def cosine_similarity(a, b):
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
 
 def find_most_relevant_chunk(question, top_k=2):
     q_embedding = get_embedding(question)
@@ -98,9 +138,9 @@ def find_most_relevant_chunk(question, top_k=2):
     best_score = similarities[best_indices[0]]
     return [chunks[i] for i in best_indices], best_score
 
+
 def ask(question):
     relevant_chunks, best_score = find_most_relevant_chunk(question, top_k=2)
-
     print(f"\n[Benzerlik skoru]: {best_score:.3f}")
 
     if best_score < SIMILARITY_THRESHOLD:
@@ -136,6 +176,7 @@ Cevap:"""
         if chunk.choices and chunk.choices[0].delta.content is not None:
             print(chunk.choices[0].delta.content, end="", flush=True)
     print("\n")
+
 
 if __name__ == "__main__":
     print("Ders Asistani hazir! Sorularini yaz, cikmak icin q yaz.\n")
