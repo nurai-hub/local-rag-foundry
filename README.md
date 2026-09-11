@@ -12,6 +12,21 @@ A fully local, offline Retrieval-Augmented Generation (RAG) course assistant bui
 
 ## Architecture
 
+```mermaid
+flowchart LR
+    A[PDF dosyalari] --> B[Chunk'lara bolme]
+    B --> C[Embedding'e cevirme]
+    C --> D[(Embedding cache)]
+    E[Kullanici sorusu] --> F[Soru embedding]
+    D --> G[Benzerlik karsilastirmasi]
+    F --> G
+    G --> H{Skor esik ustunde mi?}
+    H -->|Hayir| I[Yeterli bilgi yok cevabi]
+    H -->|Evet| J[Ilgili chunk'lari al]
+    J --> K[Local LLM - Qwen2.5]
+    K --> L[Kaynakli cevap]
+```
+
 ## Tech Stack
 
 - **Runtime:** Foundry Local (Microsoft), GPU-accelerated (Intel integrated graphics)
